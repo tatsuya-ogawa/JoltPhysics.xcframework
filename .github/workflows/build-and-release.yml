@@ -33,7 +33,7 @@ on:
       update_branch:
         description: "Branch to commit Package.swift updates"
         required: true
-        default: "master"
+        default: "main"
 
 permissions:
   contents: write

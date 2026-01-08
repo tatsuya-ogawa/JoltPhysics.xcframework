@@ -30,10 +30,10 @@ on:
         description: "Enable Metal compute path (JPH_USE_MTL)"
         required: true
         default: "ON"
-      update_package_swift:
-        description: "Update Package.swift and tag commit"
-        type: boolean
-        default: false
+      update_branch:
+        description: "Branch to commit Package.swift updates"
+        required: true
+        default: "master"
 
 permissions:
   contents: write
@@ -74,16 +74,21 @@ jobs:
           echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Update Package.swift and tag
-        if: inputs.update_package_swift == true
         run: |
           URL="https://github.com/${{ github.repository }}/releases/download/${{ inputs.release_tag }}/JoltPhysics.xcframework.zip"
           ./scripts/update_package_swift.sh "$URL" "${{ steps.checksum.outputs.checksum }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "${{ inputs.update_branch }}"
+          git checkout "${{ inputs.update_branch }}"
           git add Package.swift
-          git commit -m "Update Package.swift for ${{ inputs.release_tag }}"
+          if git diff --cached --quiet; then
+            echo "Package.swift unchanged; skipping commit."
+          else
+            git commit -m "Update Package.swift for ${{ inputs.release_tag }}"
+          fi
           git tag "${{ inputs.release_tag }}"
-          git push origin HEAD:${{ github.ref_name }} --tags
+          git push origin HEAD:${{ inputs.update_branch }} --tags
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

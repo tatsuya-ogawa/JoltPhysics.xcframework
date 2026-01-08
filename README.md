@@ -19,12 +19,13 @@ This repository builds a precompiled iOS `xcframework` for JoltPhysics and publi
 
 ## Maintainer flow
 1. Run the workflow (`Build and Release`) with the desired Jolt ref and release tag.
-2. If `update_package_swift=true`, the workflow updates `Package.swift` and tags the commit.
+2. The workflow updates `Package.swift`, commits it to the selected branch, and tags that commit.
 3. Metal compute is enabled by default. The workflow selects `latest-stable` Xcode.
 
 Defaults (as of January 8, 2026):
 - `xcode_version`: `latest-stable` (currently Xcode 16.4)
 - `ios_deployment_target`: `18.0` (latest stable iOS major)
+- `update_branch`: `main`
 
 If you want beta toolchains (Xcode 26b* / iOS 26), set `xcode_version=latest` and `ios_deployment_target=26.0`.
 

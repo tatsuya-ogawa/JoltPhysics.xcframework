@@ -1,0 +1,93 @@
+name: Build and Release JoltPhysics xcframework
+
+on:
+  workflow_dispatch:
+    inputs:
+      jolt_repo:
+        description: "JoltPhysics git repo"
+        required: true
+        default: "https://github.com/jrouwe/JoltPhysics.git"
+      jolt_ref:
+        description: "Tag / branch / SHA to build"
+        required: true
+        default: "master"
+      release_tag:
+        description: "Release tag to create"
+        required: true
+      configuration:
+        description: "CMake configuration"
+        required: true
+        default: "Release"
+      xcode_version:
+        description: "Xcode version (latest-stable, latest, or specific)"
+        required: true
+        default: "latest-stable"
+      ios_deployment_target:
+        description: "iOS deployment target"
+        required: true
+        default: "18.0"
+      jph_use_mtl:
+        description: "Enable Metal compute path (JPH_USE_MTL)"
+        required: true
+        default: "ON"
+      update_package_swift:
+        description: "Update Package.swift and tag commit"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "${{ inputs.xcode_version }}"
+
+      - name: Clone JoltPhysics
+        run: |
+          git clone "${{ inputs.jolt_repo }}" JoltPhysics
+          cd JoltPhysics
+          git checkout "${{ inputs.jolt_ref }}"
+
+      - name: Build xcframework
+        run: |
+          chmod +x scripts/build_jolt_xcframework.sh
+          IOS_DEPLOYMENT_TARGET="${{ inputs.ios_deployment_target }}" \
+          JPH_USE_MTL="${{ inputs.jph_use_mtl }}" \
+            ./scripts/build_jolt_xcframework.sh "${{ inputs.configuration }}"
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          ZIP_PATH="${{ github.workspace }}/build/output/JoltPhysics.xcframework.zip"
+          CHECKSUM=$(swift package compute-checksum "$ZIP_PATH")
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Update Package.swift and tag
+        if: inputs.update_package_swift == true
+        run: |
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ inputs.release_tag }}/JoltPhysics.xcframework.zip"
+          ./scripts/update_package_swift.sh "$URL" "${{ steps.checksum.outputs.checksum }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          git commit -m "Update Package.swift for ${{ inputs.release_tag }}"
+          git tag "${{ inputs.release_tag }}"
+          git push origin HEAD:${{ github.ref_name }} --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: ${{ inputs.release_tag }}
+          files: ${{ steps.checksum.outputs.zip_path }}
